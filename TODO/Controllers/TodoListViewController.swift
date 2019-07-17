@@ -7,32 +7,20 @@
 //
 
 import UIKit
+import CoreData
 
 class TodoListViewController: UITableViewController {
  
     var itemArray = [Item]()
-//    let defaults = UserDefaults.standard
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
     
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+
     
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
-        
-        print(dataFilePath!)
-        
-        let newItem1 = Item()
-        newItem1.title = "购买水杯"
-        itemArray.append(newItem1)
-        
-        let newItem2 = Item()
-        newItem2.title = "吃药"
-        itemArray.append(newItem2)
-        
-        let newItem3 = Item()
-        newItem3.title = "修改密码"
-        itemArray.append(newItem3)
-        
+        loadItems()
+        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
     }
 
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
@@ -40,12 +28,13 @@ class TodoListViewController: UITableViewController {
 
         let alert = UIAlertController(title: "添加一个新的ToDo项目", message: "", preferredStyle: .alert)
         let action = UIAlertAction(title: "添加项目", style: .default) { (action) in
-            //用户单击添加项目按钮以后要执行的代码
-            let newItem = Item()
-            newItem.title = textField.text!
-            self.itemArray.append(newItem)
             
-//            self.defaults.set(self.itemArray, forKey: "ToDoListArray")
+            //用户单击添加项目按钮以后要执行的代码
+            
+            let newItem = Item(context: self.context)
+            newItem.title = textField.text!
+            newItem.done = false
+            self.itemArray.append(newItem)
             self.saveItems()
             
             self.tableView.reloadData()
@@ -67,7 +56,6 @@ class TodoListViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
         cell.textLabel?.text = itemArray[indexPath.row].title
-        
         if itemArray[indexPath.row].done {
             cell.accessoryType = .checkmark
         }else{
@@ -82,30 +70,49 @@ class TodoListViewController: UITableViewController {
         
         itemArray[indexPath.row].done = !itemArray[indexPath.row].done
         saveItems()
+        
+//        //删除
+//        context.delete(itemArray[indexPath.row])
+//        itemArray.remove(at: indexPath.row)
+        
         tableView.beginUpdates()
         tableView.reloadRows(at: [indexPath], with: UITableView.RowAnimation.none)
         tableView.endUpdates()
     }
     
     func saveItems() {
-        let encoder = PropertyListEncoder()
         do {
-            let data = try encoder.encode(self.itemArray)
-            try data.write(to: dataFilePath!)
+            try context.save()
         }catch {
-            print("编码错误：\(error)")
+            print("保存context错误：\(error)")
         }
     }
+    
+    func loadItems(with request: NSFetchRequest<Item> = Item.fetchRequest()) {
+        
+        do {
+            itemArray = try context.fetch(request)
+        } catch {
+            print("从context获取数据错误：\(error)")
+        }
+        tableView.reloadData()
+    }
+}
 
-    func loadItems() {
-        if let data = try? Data(contentsOf: dataFilePath!) {
-            let decoder = PropertyListDecoder()
-            do {
-               itemArray = try decoder.decode([Item].self, from: data)
-            }catch {
-                print("解码itemz错误！")
+extension TodoListViewController: UISearchBarDelegate {
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        let request: NSFetchRequest<Item> = Item.fetchRequest()
+        request.predicate = NSPredicate(format: "title CONTAINS[c] %@", searchBar.text!)
+        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+        loadItems(with: request)
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0 {
+            loadItems()
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder()
             }
         }
     }
 }
-
