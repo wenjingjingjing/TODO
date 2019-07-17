@@ -11,6 +11,12 @@ import CoreData
 
 class TodoListViewController: UITableViewController {
  
+    var selectedCategory: Category? {
+        didSet {
+            loadItems()
+        }
+    }
+    
     var itemArray = [Item]()
     
     let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
@@ -19,7 +25,6 @@ class TodoListViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
-        loadItems()
         print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
     }
 
@@ -34,6 +39,8 @@ class TodoListViewController: UITableViewController {
             let newItem = Item(context: self.context)
             newItem.title = textField.text!
             newItem.done = false
+            //将selectedCategory的值赋给Item对象的parentCategory关系属性
+            newItem.parentCategory = self.selectedCategory
             self.itemArray.append(newItem)
             self.saveItems()
             
@@ -89,6 +96,12 @@ class TodoListViewController: UITableViewController {
     }
     
     func loadItems(with request: NSFetchRequest<Item> = Item.fetchRequest()) {
+        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
+        if let addtionalPredicate = request.predicate {
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, addtionalPredicate])
+        } else {
+            request.predicate = categoryPredicate
+        }
         
         do {
             itemArray = try context.fetch(request)
